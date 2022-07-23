@@ -21,8 +21,10 @@ def plot_time_series(msr175_data,
                      output_file,
                      show_total = True,
                      show_max   = True,
-                     min_acc    = float('nan'),
-                     max_acc    = float('nan')):
+                     acc_min_g  = float('nan'),
+                     acc_max_g  = float('nan'),
+                     t_min_ms   = 0.0,
+                     t_max_ms   = float('nan')):
     
     t_ms, x_g, y_g, z_g = decompose_msr175_data(msr175_data)
     
@@ -39,9 +41,20 @@ def plot_time_series(msr175_data,
 
     ax.set_xlabel('Time [ms]')
     ax.set_ylabel('Acceleration [g]')
-    ax.set_xlim(( t_ms[0], t_ms[-1] ))
     ax.legend(loc = 'lower right')
     
+    # Set X axis range.
+    ax.set_xlim(( t_min_ms,
+                  t_ms[-1] if np.isnan(t_max_ms) else t_max_ms ))
+
+    # Set Y axis range.
+    if not (np.isnan(acc_min_g) and np.isnan(acc_max_g)):
+        current_ylim = ax.get_ylim()
+        new_ylim = (current_ylim[0] if np.isnan(acc_min_g) else acc_min_g,
+                    current_ylim[1] if np.isnan(acc_max_g) else acc_max_g)
+        ax.set_ylim(new_ylim)
+
+    # Show max acceleration as text in the plot.
     if show_total and show_max:
         max_total_g = max(total_g)
 
@@ -55,13 +68,7 @@ def plot_time_series(msr175_data,
                 bbox = dict(facecolor = 'white',
                             edgecolor = 'black',
                             boxstyle  = 'round'))
-
-    if not (np.isnan(min_acc) and np.isnan(max_acc)):
-        current_ylim = ax.get_ylim()
-        new_ylim = (current_ylim[0] if np.isnan(min_acc) else min_acc,
-                    current_ylim[1] if np.isnan(max_acc) else max_acc)
-        ax.set_ylim(new_ylim)
-
+        
     fig.savefig(output_file)
 
 def get_sampling_period_in_milliseconds(msr175_data):
@@ -100,15 +107,25 @@ def parse_arguments():
                         action  = 'store_true',
                         help    = 'Show the generated plots in GUI')
     parser.add_argument('--min-acc',
-                        dest    = 'min_acc',
+                        dest    = 'acc_min_g',
                         type    = float,
                         default = float('nan'),
                         help    = 'Minimum acceleration in g for the time series plot. Specify "nan" for auto scale.')
     parser.add_argument('--max-acc',
-                        dest    = 'max_acc',
+                        dest    = 'acc_max_g',
                         type    = float,
                         default = float('nan'),
                         help    = 'Maximum acceleration in g for the time series plot. Specify "nan" for auto scale.')
+    parser.add_argument('--min-time',
+                        dest     = 't_min_ms',
+                        type     = float,
+                        default  = 0.0,
+                        help     = 'Minimum time in the time series plot in milliseconds.')
+    parser.add_argument('--max-time',
+                        dest     = 't_max_ms',
+                        type     = float,
+                        default  = float('nan'),
+                        help     = 'Maximum time in the time series plot in milliseconds. Specify "nan" for auto scale.')
     
     parser.add_argument('csv_file', nargs='+')
     
@@ -133,8 +150,10 @@ def main():
                          time_series_plot_path,
                          show_total = not args.hide_total,
                          show_max   = not args.hide_max,
-                         min_acc    = args.min_acc,
-                         max_acc    = args.max_acc)
+                         acc_min_g  = args.acc_min_g,
+                         acc_max_g  = args.acc_max_g,
+                         t_min_ms   = args.t_min_ms,
+                         t_max_ms   = args.t_max_ms)
         print(f'Generated time series plot as {time_series_plot_path}')
 
     if args.show_plots:
