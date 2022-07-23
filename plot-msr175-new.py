@@ -223,6 +223,11 @@ def parse_arguments():
                         default = 'output.html',
                         metavar = 'OUTPUT',
                         help    = 'Output HTML file path.')
+    parser.add_argument('--skip-invalid-sheets',
+                        dest     = 'skip_invalid_sheets',
+                        action   = 'store_true',
+                        help     = 'Specify this option to skip loading Excel sheets that include invalid format/value and continue processing other Excel sheets.')
+                        
     parser.add_argument('xlsx_file', nargs='+')
 
     return parser.parse_args()
@@ -234,11 +239,11 @@ def main():
     shock_events = []
 
     for xlsx_path in xlsx_paths:
-        shock_events.extend(MSR175ShockEvent.load_xlsx(xlsx_path, skip_invalid_sheets = False))
+        shock_events.extend(MSR175ShockEvent.load_xlsx(xlsx_path,
+                                                       skip_invalid_sheets = args.skip_invalid_sheets))
 
     for shock_event in shock_events:
         print(f'{shock_event.xlsx_filename}: {shock_event.event_id} at {shock_event.timestamp} (Sampling frequency: {shock_event.sampling_frequency_Hz} Hz, duration: {shock_event.duration_ms} ms)')
-        print(shock_event.t_ms)
 
 if __name__ == "__main__":
     main()
