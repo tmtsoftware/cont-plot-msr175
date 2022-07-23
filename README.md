@@ -35,3 +35,7 @@ Run `plot-msr175.py` with `--help` argument to see plot options:
     $ ./plot-msr175.py --help
 
 For example, you can change the file format of the plots with `--plot-format` option.
+
+## License
+
+The script is distributed under Apache-2.0 license. See [LICENSE](LICENSE) for more details.
