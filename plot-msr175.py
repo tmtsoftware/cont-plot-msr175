@@ -71,7 +71,9 @@ def get_sampling_period_in_milliseconds(msr175_data):
     return t_ms[1] - t_ms[0]
 
 def plot_power_spectrum(ax,
-                        msr175_data):
+                        msr175_data,
+                        ps_min_g2 = float('nan'),
+                        ps_max_g2 = float('nan')):
     t_ms, x_g, y_g, z_g = decompose_msr175_data(msr175_data)
 
     dt_ms = get_sampling_period_in_milliseconds(msr175_data)
@@ -104,7 +106,12 @@ def plot_power_spectrum(ax,
 
     # Set Y axis.
     ax.set_yscale('log')
-
+    if not (np.isnan(ps_min_g2) and np.isnan(ps_max_g2)):
+        current_ylim = ax.get_ylim()
+        new_ylim = (current_ylim[0] if np.isnan(ps_min_g2) else ps_min_g2,
+                    current_ylim[1] if np.isnan(ps_max_g2) else ps_max_g2)
+        ax.set_ylim(new_ylim)
+        
 def read_msr175_csv(csv_file_path):
     msr175_data = np.loadtxt(csv_file_path,
                              dtype     = float,
@@ -165,6 +172,16 @@ def parse_arguments():
                         dest    = 'plot_power_spectrum',
                         action  = 'store_true',
                         help    = 'Plow power spectrum.')
+    parser.add_argument('--min-ps',
+                        dest    = 'ps_min_g2',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Minimum power spectrum in g^2 for the plot. Specify "nan" for auto scale.')
+    parser.add_argument('--max-ps',
+                        dest    = 'ps_max_g2',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Maximum power spectrum in g^2 for the plot. Specify "nan" for auto scale.')
     
     parser.add_argument('csv_file', nargs='+')
     
@@ -203,7 +220,9 @@ def main():
         if args.plot_power_spectrum:
             ax_power_spectrum = fig.add_subplot(2, 1, 2)
             plot_power_spectrum(ax_power_spectrum,
-                                msr175_data)
+                                msr175_data,
+                                ps_min_g2 = args.ps_min_g2,
+                                ps_max_g2 = args.ps_max_g2)
 
         fig.savefig(plot_path, dpi = args.dpi)
         print(f'Generated the plot as {plot_path}')
