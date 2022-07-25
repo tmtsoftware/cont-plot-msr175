@@ -240,7 +240,7 @@ class MSR175ShockEvent:
                       plot_height  = height,
                       x_range      = (0, self.sampling_frequency_Hz / 2),
                       x_axis_label = 'Frequency [Hz]',
-                      y_axis_label = 'Power Spectrum [g^2]',
+                      y_axis_label = 'Power Spectrum [g²]',
                       y_axis_type  = 'log')
 
         data = {
@@ -259,9 +259,9 @@ class MSR175ShockEvent:
 
         plot.legend.location = 'top_right'
         tooltips = [('Frequency', '@freq_Hz{0} Hz'),
-                    ('X', '@ps_x_g2 g^2'),
-                    ('Y', '@ps_y_g2 g^2'),
-                    ('Z', '@ps_z_g2 g^2')]
+                    ('X', '@ps_x_g2 g²'),
+                    ('Y', '@ps_y_g2 g²'),
+                    ('Z', '@ps_z_g2 g²')]
         plot.add_tools(HoverTool(tooltips = tooltips))
         return plot
     
