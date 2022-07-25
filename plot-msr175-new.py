@@ -12,12 +12,36 @@ import bokeh
 from bokeh.models import HoverTool
 from bokeh.plotting import figure
 from bokeh.embed import components
+import numpy as np
 from openpyxl import load_workbook
+
+def property_table(html_tree, names, values):
+    table = html_tree.new_tag('table')
+
+    assert len(names) == len(values)
+    for i in range(len(names)):
+        name  = names[i]
+        value = values[i]
+
+        tr = html_tree.new_tag('tr')
+        td_name = html_tree.new_tag('td')
+        td_name.string = name
+        tr.append(td_name)
+        td_value = html_tree.new_tag('td')
+        td_value.string = value
+        tr.append(td_value)
+
+        table.append(tr)
+
+    return table
 
 def hyperlink(html_tree, text, href):
     a = html_tree.new_tag('a', href = href)
     a.string = text
     return a
+
+def calc_total_g(x_g, y_g, z_g):
+    return np.sqrt( np.array(x_g)**2 + np.array(y_g)**2 + np.array(z_g)**2 )
 
 class MSR175WorkbookLoadError(Exception):
     '''Indicates that the workbook has an error.'''
@@ -77,6 +101,8 @@ class MSR175ShockEvent:
         assert len(x_g) == len(y_g)
         assert len(y_g) == len(z_g)
 
+        self.__total_g = calc_total_g(x_g, y_g, z_g)
+
     @property
     def event_id(self):
         return self.__event_id
@@ -114,6 +140,14 @@ class MSR175ShockEvent:
         return self.__z_g
 
     @property
+    def total_g(self):
+        return self.__total_g
+
+    @property
+    def max_g(self):
+        return max(self.__total_g)
+
+    @property
     def t_ms(self):
         return [self.sampling_period_ms * i for i in range(self.n)]
 
@@ -135,23 +169,27 @@ class MSR175ShockEvent:
                       plot_height = height)
 
         data = {
-            't_ms': self.t_ms,
-            'x_g' : self.x_g,
-            'y_g' : self.y_g,
-            'z_g' : self.z_g,
+            't_ms'   : self.t_ms,
+            'x_g'    : self.x_g,
+            'y_g'    : self.y_g,
+            'z_g'    : self.z_g,
+            'total_g': self.total_g,
         }
 
-        for y, color in (('x_g', 'red'),
-                         ('y_g', 'blue'),
-                         ('z_g', 'green')):
-            plot.line(source = data, x = 't_ms', y = y, color = color)
+        for label, y, color in (('X', 'x_g', 'red'),
+                                ('Y', 'y_g', 'blue'),
+                                ('Z', 'z_g', 'green'),
+                                ('Total', 'total_g', 'orange')):
+            plot.line(source = data, x = 't_ms', y = y, color = color, legend_label = label)
             plot.circle(source = data, size = 10, x = 't_ms', y = y, color = color,
                         alpha = 0.0, hover_color = color, hover_alpha = 1.0)
-        
+
+        plot.legend.location = 'bottom_right'
         tooltips = [('t', '@t_ms{0.00000} ms'),
                     ('x', '@x_g g'),
                     ('y', '@y_g g'),
-                    ('z', '@z_g g')]
+                    ('z', '@z_g g'),
+                    ('total', '@total_g g')]
         plot.add_tools(HoverTool(tooltips = tooltips))
         return plot
 
@@ -342,7 +380,11 @@ def main():
         summary_table = html_tree.select('table#plot-msr175-summary')[0]
         if i == 0:
             tr = html_tree.new_tag('tr')
-            for header_names in ('Data Source', 'Event ID', 'Timestamp', 'Link'):
+            for header_names in ('Data Source',
+                                 'Event ID',
+                                 'Timestamp',
+                                 'Max Acceleration',
+                                 'Link'):
                 th = html_tree.new_tag('th')
                 th.string = header_names
                 tr.append(th)
@@ -350,9 +392,10 @@ def main():
 
         tr = html_tree.new_tag('tr')
         for cell_content in (shock_event.xlsx_filename,
-                              str(shock_event.event_id),
-                              shock_event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                              hyperlink(html_tree, 'jump', f'#{shock_event.html_id}')):
+                             str(shock_event.event_id),
+                             shock_event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                             f'{shock_event.max_g:.1f} g',
+                             hyperlink(html_tree, 'jump', f'#{shock_event.html_id}')):
             td = html_tree.new_tag('td')
             if isinstance(cell_content, Tag):
                 td.append(cell_content)
@@ -365,6 +408,18 @@ def main():
         plot_title = html_tree.new_tag('h2', id = shock_event.html_id)
         plot_title.string = f'{shock_event.xlsx_filename}: Event ID {shock_event.event_id}'
         plots_container.append(plot_title)
+
+        # Add event properties.
+        prop_table = property_table(html_tree,
+                                    ('Data Source:',
+                                     'Event ID:',
+                                     'Timestamp:',
+                                     'Max Acceleration:'),
+                                    (shock_event.xlsx_filename,
+                                     str(shock_event.event_id),
+                                     shock_event.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                                     f'{shock_event.max_g:.1f} g'))
+        plots_container.append(prop_table)
 
         # Add the time series plot.
         plots_container.append(time_series_plot_div)
