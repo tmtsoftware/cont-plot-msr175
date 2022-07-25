@@ -9,7 +9,7 @@ import sys
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 import bokeh
-from bokeh.models import HoverTool
+from bokeh.models import HoverTool, DataRange1d
 from bokeh.plotting import figure
 from bokeh.embed import components
 import numpy as np
@@ -164,9 +164,20 @@ class MSR175ShockEvent:
         # TODO: replace characters that are not allowed as a part of HTML id
         return f'{self.xlsx_filename}:{self.event_id}'
 
-    def time_series_plot(self, width = 700, height = 350):
+    def time_series_plot(self,
+                         width = 700,
+                         height = 350,
+                         acc_min_g = None,
+                         acc_max_g = None,
+                         t_min_ms  = None,
+                         t_max_ms  = None):
         plot = figure(plot_width  = width,
-                      plot_height = height)
+                      plot_height = height,
+                      x_range = (0 if t_min_ms is None else t_min_ms,
+                                 self.duration_ms if t_max_ms is None else t_max_ms),
+                      x_axis_label = 'Time [ms]',
+                      y_range = DataRange1d(start = acc_min_g, end = acc_max_g),
+                      y_axis_label = 'Acceleration [g]')
 
         data = {
             't_ms'   : self.t_ms,
@@ -325,6 +336,28 @@ def parse_arguments():
                         default = 350,
                         type    = int,
                         help    = 'Height of each plot in pixels.')
+    parser.add_argument('--min-acc',
+                        dest    = 'acc_min_g',
+                        metavar = 'MIN_G',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Minimum acceleration in g for the time series plot. Specify "nan" for auto scale.')
+    parser.add_argument('--max-acc',
+                        dest    = 'acc_max_g',
+                        metavar = 'MAX_G',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Maximum acceleration in g for the time series plot. Specify "nan" for auto scale.')
+    parser.add_argument('--min-time',
+                        dest     = 't_min_ms',
+                        type     = float,
+                        default  = 0.0,
+                        help     = 'Minimum time in the time series plot in milliseconds.')
+    parser.add_argument('--max-time',
+                        dest     = 't_max_ms',
+                        type     = float,
+                        default  = float('nan'),
+                        help     = 'Maximum time in the time series plot in milliseconds. Specify "nan" for auto scale.')
     parser.add_argument('xlsx_file', nargs='+')
 
     return parser.parse_args()
@@ -355,7 +388,11 @@ def main():
     time_series_plots = []
     for shock_event in shock_events:
         plot = shock_event.time_series_plot(width  = args.plot_width,
-                                            height = args.plot_height)
+                                            height = args.plot_height,
+                                            acc_min_g = None if np.isnan(args.acc_min_g) else args.acc_min_g,
+                                            acc_max_g = None if np.isnan(args.acc_max_g) else args.acc_max_g,
+                                            t_min_ms  = None if np.isnan(args.t_min_ms) else args.t_min_ms,
+                                            t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms)
         time_series_plots.append(plot)
 
     # Generate Bokeh JavaScript and "div" tags for plots.
