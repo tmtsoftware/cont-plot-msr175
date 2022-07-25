@@ -101,7 +101,20 @@ class MSR175ShockEvent:
         assert len(x_g) == len(y_g)
         assert len(y_g) == len(z_g)
 
+        # Calculate total acceleration.
         self.__total_g = calc_total_g(x_g, y_g, z_g)
+
+        # Calculate power spectrum
+        n = len(x_g)
+        ps_x_g2 = np.abs(np.fft.fft(x_g))**2
+        ps_y_g2 = np.abs(np.fft.fft(y_g))**2
+        ps_z_g2 = np.abs(np.fft.fft(z_g))**2
+        freq_Hz = np.fft.fftfreq(n, sampling_period_ms / 1000.0)
+
+        self.__ps_x_g2 = ps_x_g2[0:int(n/2)]
+        self.__ps_y_g2 = ps_y_g2[0:int(n/2)]
+        self.__ps_z_g2 = ps_z_g2[0:int(n/2)]
+        self.__freq_Hz = freq_Hz[0:int(n/2)]
 
     @property
     def event_id(self):
@@ -151,6 +164,22 @@ class MSR175ShockEvent:
     def t_ms(self):
         return [self.sampling_period_ms * i for i in range(self.n)]
 
+    @property
+    def power_spectrum_x_g2(self):
+        return self.__ps_x_g2
+
+    @property
+    def power_spectrum_y_g2(self):
+        return self.__ps_y_g2
+    
+    @property
+    def power_spectrum_z_g2(self):
+        return self.__ps_z_g2
+
+    @property
+    def power_spectrum_freq_Hz(self):
+        return self.__freq_Hz
+    
     @property
     def xlsx_path(self):
         return Path(self.__xlsx_path)
@@ -204,6 +233,38 @@ class MSR175ShockEvent:
         plot.add_tools(HoverTool(tooltips = tooltips))
         return plot
 
+    def power_spectrum_plot(self,
+                            width = 700,
+                            height = 350):
+        plot = figure(plot_width   = width,
+                      plot_height  = height,
+                      x_range      = (0, self.sampling_frequency_Hz / 2),
+                      x_axis_label = 'Frequency [Hz]',
+                      y_axis_label = 'Power Spectrum [g^2]',
+                      y_axis_type  = 'log')
+
+        data = {
+            'freq_Hz': self.power_spectrum_freq_Hz,
+            'ps_x_g2': self.power_spectrum_x_g2,
+            'ps_y_g2': self.power_spectrum_y_g2,
+            'ps_z_g2': self.power_spectrum_z_g2,
+        }
+
+        for label, y, color in (('X', 'ps_x_g2', 'red'),
+                                ('Y', 'ps_y_g2', 'blue'),
+                                ('Z', 'ps_z_g2', 'green')):
+            plot.line(source = data, x = 'freq_Hz', y = y, color = color, legend_label = label)
+            plot.circle(source = data, size = 10, x = 'freq_Hz', y = y, color = color,
+                        alpha = 0.0, hover_color = color, hover_alpha = 1.0)
+
+        plot.legend.location = 'top_right'
+        tooltips = [('Frequency', '@freq_Hz{0} Hz'),
+                    ('X', '@ps_x_g2 g^2'),
+                    ('Y', '@ps_y_g2 g^2'),
+                    ('Z', '@ps_z_g2 g^2')]
+        plot.add_tools(HoverTool(tooltips = tooltips))
+        return plot
+    
     @staticmethod
     def validate_cell(worksheet, cell_address, expected_value):
         value = worksheet[cell_address].value
@@ -395,9 +456,19 @@ def main():
                                             t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms)
         time_series_plots.append(plot)
 
+    # Generate power spectrum plots for each shock event
+    power_spectrum_plots = []
+    for shock_event in shock_events:
+        plot = shock_event.power_spectrum_plot(width  = args.plot_width,
+                                               height = args.plot_height)
+        power_spectrum_plots.append(plot)
+
     # Generate Bokeh JavaScript and "div" tags for plots.
-    bokeh_script_html, time_series_plot_div_htmls = components(time_series_plots)
-    time_series_plot_divs = [BeautifulSoup(html, 'html.parser') for html in time_series_plot_div_htmls]
+    plots = time_series_plots + power_spectrum_plots
+    bokeh_script_html, plot_div_htmls = components(plots)
+    plot_divs = [BeautifulSoup(html, 'html.parser') for html in plot_div_htmls]
+    time_series_plot_divs = plot_divs[:len(time_series_plots)]
+    power_spectrum_plot_divs = plot_divs[len(time_series_plots):]
         
     # Insert Bokeh JavaScript in the HTML tree.
     bokeh_cdn = html_tree.new_tag('script',
@@ -412,6 +483,7 @@ def main():
     for i in range(len(shock_events)):
         shock_event = shock_events[i]
         time_series_plot_div = time_series_plot_divs[i]
+        power_spectrum_plot_div = power_spectrum_plot_divs[i]
 
         # Add summary.
         summary_table = html_tree.select('table#plot-msr175-summary')[0]
@@ -460,6 +532,9 @@ def main():
 
         # Add the time series plot.
         plots_container.append(time_series_plot_div)
+
+        # Add the power spectrum plot.
+        plots_container.append(power_spectrum_plot_div)
 
     # Output the final HTML.
     with open(args.output_path, 'w') as output_html_file:
