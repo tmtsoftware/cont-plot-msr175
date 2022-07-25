@@ -207,7 +207,8 @@ class MSR175ShockEvent:
                                  self.duration_ms if t_max_ms is None else t_max_ms),
                       x_axis_label = 'Time [ms]',
                       y_range = DataRange1d(start = acc_min_g, end = acc_max_g),
-                      y_axis_label = 'Acceleration [g]')
+                      y_axis_label = 'Acceleration [g]',
+                      toolbar_location = 'above')
 
         data = {
             't_ms'   : self.t_ms,
@@ -246,7 +247,8 @@ class MSR175ShockEvent:
                       x_axis_label = 'Frequency [Hz]',
                       y_range = DataRange1d(start = ps_min_g2, end = ps_max_g2),
                       y_axis_label = 'Power Spectrum [g²]',
-                      y_axis_type  = 'log')
+                      y_axis_type  = 'log',
+                      toolbar_location = 'above')
 
         data = {
             'freq_Hz': self.power_spectrum_freq_Hz,
@@ -547,11 +549,11 @@ def main():
                                      f'{shock_event.max_g:.1f} g'))
         plots_container.append(prop_table)
 
-        # Add the time series plot.
-        plots_container.append(time_series_plot_div)
-
-        # Add the power spectrum plot.
-        plots_container.append(power_spectrum_plot_div)
+        # Add plots
+        horizontal_container = html_tree.new_tag('div')
+        horizontal_container.append(time_series_plot_div)
+        horizontal_container.append(power_spectrum_plot_div)
+        plots_container.append(horizontal_container)
 
     # Output the final HTML.
     with open(args.output_path, 'w') as output_html_file:
