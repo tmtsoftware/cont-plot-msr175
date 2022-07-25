@@ -194,12 +194,13 @@ class MSR175ShockEvent:
         return f'{self.xlsx_filename}:{self.event_id}'
 
     def time_series_plot(self,
-                         width = 700,
-                         height = 350,
+                         width     = 700,
+                         height    = 350,
                          acc_min_g = None,
                          acc_max_g = None,
                          t_min_ms  = None,
                          t_max_ms  = None):
+        
         plot = figure(plot_width  = width,
                       plot_height = height,
                       x_range = (0 if t_min_ms is None else t_min_ms,
@@ -234,12 +235,16 @@ class MSR175ShockEvent:
         return plot
 
     def power_spectrum_plot(self,
-                            width = 700,
-                            height = 350):
+                            width     = 700,
+                            height    = 350,
+                            ps_min_g2 = None,
+                            ps_max_g2 = None):
+
         plot = figure(plot_width   = width,
                       plot_height  = height,
                       x_range      = (0, self.sampling_frequency_Hz / 2),
                       x_axis_label = 'Frequency [Hz]',
+                      y_range = DataRange1d(start = ps_min_g2, end = ps_max_g2),
                       y_axis_label = 'Power Spectrum [g²]',
                       y_axis_type  = 'log')
 
@@ -419,6 +424,16 @@ def parse_arguments():
                         type     = float,
                         default  = float('nan'),
                         help     = 'Maximum time in the time series plot in milliseconds. Specify "nan" for auto scale.')
+    parser.add_argument('--min-ps',
+                        dest    = 'ps_min_g2',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Minimum power spectrum in g^2 for the plot. Specify "nan" for auto scale.')
+    parser.add_argument('--max-ps',
+                        dest    = 'ps_max_g2',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Maximum power spectrum in g^2 for the plot. Specify "nan" for auto scale.')
     parser.add_argument('xlsx_file', nargs='+')
 
     return parser.parse_args()
@@ -460,7 +475,9 @@ def main():
     power_spectrum_plots = []
     for shock_event in shock_events:
         plot = shock_event.power_spectrum_plot(width  = args.plot_width,
-                                               height = args.plot_height)
+                                               height = args.plot_height,
+                                               ps_min_g2 = None if np.isnan(args.ps_min_g2) else args.ps_min_g2,
+                                               ps_max_g2 = None if np.isnan(args.ps_max_g2) else args.ps_max_g2)
         power_spectrum_plots.append(plot)
 
     # Generate Bokeh JavaScript and "div" tags for plots.
