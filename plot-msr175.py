@@ -116,6 +116,12 @@ class MSR175ShockEvent:
         self.__ps_z_g2 = ps_z_g2[0:int(n/2)]
         self.__freq_Hz = freq_Hz[0:int(n/2)]
 
+        # Calculate velocity profile, which is a simple integration of acceleration
+        # assuming that the initial velocity is 0.
+        self.__x_m_s = np.cumsum(x_g) * 9.8 * (sampling_period_ms / 1000.0)
+        self.__y_m_s = np.cumsum(y_g) * 9.8 * (sampling_period_ms / 1000.0)
+        self.__z_m_s = np.cumsum(z_g) * 9.8 * (sampling_period_ms / 1000.0)
+
     @property
     def event_id(self):
         return self.__event_id
@@ -181,6 +187,18 @@ class MSR175ShockEvent:
         return self.__freq_Hz
     
     @property
+    def x_m_s(self):
+        return self.__x_m_s
+
+    @property
+    def y_m_s(self):
+        return self.__y_m_s
+
+    @property
+    def z_m_s(self):
+        return self.__z_m_s
+    
+    @property
     def xlsx_path(self):
         return Path(self.__xlsx_path)
 
@@ -193,13 +211,13 @@ class MSR175ShockEvent:
         # TODO: replace characters that are not allowed as a part of HTML id
         return f'{self.xlsx_filename}:{self.event_id}'
 
-    def time_series_plot(self,
-                         width     = 700,
-                         height    = 350,
-                         acc_min_g = None,
-                         acc_max_g = None,
-                         t_min_ms  = None,
-                         t_max_ms  = None):
+    def acc_time_series_plot(self,
+                             width     = 700,
+                             height    = 350,
+                             acc_min_g = None,
+                             acc_max_g = None,
+                             t_min_ms  = None,
+                             t_max_ms  = None):
         
         plot = figure(plot_width  = width,
                       plot_height = height,
@@ -232,6 +250,47 @@ class MSR175ShockEvent:
                     ('y', '@y_g g'),
                     ('z', '@z_g g'),
                     ('total', '@total_g g')]
+        plot.toolbar.logo = None
+        plot.add_tools(HoverTool(tooltips = tooltips))
+        return plot
+
+    def vel_time_series_plot(self,
+                             width       = 700,
+                             height      = 350,
+                             vel_min_m_s = None,
+                             vel_max_m_s = None,
+                             t_min_ms    = None,
+                             t_max_ms    = None):
+        
+        plot = figure(plot_width  = width,
+                      plot_height = height,
+                      x_range = (0 if t_min_ms is None else t_min_ms,
+                                 self.duration_ms if t_max_ms is None else t_max_ms),
+                      x_axis_label = 'Time [ms]',
+                      y_range = DataRange1d(start = vel_min_m_s, end = vel_max_m_s),
+                      y_axis_label = 'Velocity [m/s] (assumes 0 m/s at t = 0)',
+                      toolbar_location = 'above')
+
+        data = {
+            't_ms_' : self.t_ms,
+            'x_m_s' : self.x_m_s,
+            'y_m_s' : self.y_m_s,
+            'z_m_s' : self.z_m_s,
+        }
+
+        for label, y, color in (('X', 'x_m_s', 'red'),
+                                ('Y', 'y_m_s', 'blue'),
+                                ('Z', 'z_m_s', 'green')):
+            plot.line(source = data, x = 't_ms_', y = y, color = color, legend_label = label)
+            plot.circle(source = data, size = 10, x = 't_ms_', y = y, color = color,
+                        alpha = 0.0, hover_color = color, hover_alpha = 1.0)
+
+        plot.legend.location = 'bottom_right'
+        tooltips = [('t', '@t_ms_{0.00000} ms'),
+                    ('x', '@x_m_s m/s'),
+                    ('y', '@y_m_s m/s'),
+                    ('z', '@z_m_s m/s')]
+        plot.toolbar.logo = None
         plot.add_tools(HoverTool(tooltips = tooltips))
         return plot
 
@@ -269,6 +328,7 @@ class MSR175ShockEvent:
                     ('X', '@ps_x_g2 g²'),
                     ('Y', '@ps_y_g2 g²'),
                     ('Z', '@ps_z_g2 g²')]
+        plot.toolbar.logo = None
         plot.add_tools(HoverTool(tooltips = tooltips))
         return plot
     
@@ -337,7 +397,7 @@ class MSR175ShockEvent:
             else:
                 dt_ms = round(t_ms - prev_t_ms, 6)
                 if dt_ms != sampling_period_ms:
-                    message = f'The time difference from the previous time must be {sampling_period_ms:.5f} ms, but was {dt_ms:.5f} ms.'
+                    message = f'Time difference from the previous time must be {sampling_period_ms:.5f} ms, but was {dt_ms:.5f} ms.'
                     raise MSR175WorksheetParseError(row[0].coordinate, message)
 
             prev_t_ms = t_ms
@@ -409,33 +469,45 @@ def parse_arguments():
                         metavar = 'MIN_G',
                         type    = float,
                         default = float('nan'),
-                        help    = 'Minimum acceleration in g for the time series plot. Specify "nan" for auto scale.')
+                        help    = 'Minimum acceleration in g for acceleration time series plots. Specify "nan" for auto scale.')
     parser.add_argument('--max-acc',
                         dest    = 'acc_max_g',
                         metavar = 'MAX_G',
                         type    = float,
                         default = float('nan'),
-                        help    = 'Maximum acceleration in g for the time series plot. Specify "nan" for auto scale.')
+                        help    = 'Maximum acceleration in g for acceleration time series plots. Specify "nan" for auto scale.')
     parser.add_argument('--min-time',
                         dest     = 't_min_ms',
                         type     = float,
                         default  = 0.0,
-                        help     = 'Minimum time in the time series plot in milliseconds.')
+                        help     = 'Minimum time in time series plots in milliseconds.')
     parser.add_argument('--max-time',
                         dest     = 't_max_ms',
                         type     = float,
                         default  = float('nan'),
-                        help     = 'Maximum time in the time series plot in milliseconds. Specify "nan" for auto scale.')
+                        help     = 'Maximum time in time series plots in milliseconds. Specify "nan" for auto scale.')
     parser.add_argument('--min-ps',
                         dest    = 'ps_min_g2',
                         type    = float,
                         default = float('nan'),
-                        help    = 'Minimum power spectrum in g^2 for the plot. Specify "nan" for auto scale.')
+                        help    = 'Minimum power spectrum in g^2 for plots. Specify "nan" for auto scale.')
     parser.add_argument('--max-ps',
                         dest    = 'ps_max_g2',
                         type    = float,
                         default = float('nan'),
-                        help    = 'Maximum power spectrum in g^2 for the plot. Specify "nan" for auto scale.')
+                        help    = 'Maximum power spectrum in g^2 for plots. Specify "nan" for auto scale.')
+    parser.add_argument('--min-vel',
+                        dest    = 'vel_min_m_s',
+                        metavar = 'MIN_M_S',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Minimum velocity in m/s for velocity time series plots. Specify "nan" for auto scale.')
+    parser.add_argument('--max-vel',
+                        dest    = 'vel_max_m_s',
+                        metavar = 'MAX_M_S',
+                        type    = float,
+                        default = float('nan'),
+                        help    = 'Maximum velocity in m/s for velocity time series plots. Specify "nan" for auto scale.')
     parser.add_argument('xlsx_file', nargs='+')
 
     return parser.parse_args()
@@ -463,17 +535,17 @@ def main():
         shock_events.extend(MSR175ShockEvent.load_xlsx(xlsx_path,
                                                        skip_invalid_sheets = args.skip_invalid_sheets))
 
-    # Generate time series plots for each shock event
-    time_series_plots = []
+    # Generate acceleration time series plots for each shock event
+    acc_time_series_plots = []
     for shock_event in shock_events:
-        print(f'Generating time series plot of {shock_event.xlsx_filename} (Event ID: {shock_event.event_id})')
-        plot = shock_event.time_series_plot(width  = args.plot_width,
-                                            height = args.plot_height,
-                                            acc_min_g = None if np.isnan(args.acc_min_g) else args.acc_min_g,
-                                            acc_max_g = None if np.isnan(args.acc_max_g) else args.acc_max_g,
-                                            t_min_ms  = None if np.isnan(args.t_min_ms) else args.t_min_ms,
-                                            t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms)
-        time_series_plots.append(plot)
+        print(f'Generating acceleration time series plot of {shock_event.xlsx_filename} (Event ID: {shock_event.event_id})')
+        plot = shock_event.acc_time_series_plot(width  = args.plot_width,
+                                                height = args.plot_height,
+                                                acc_min_g = None if np.isnan(args.acc_min_g) else args.acc_min_g,
+                                                acc_max_g = None if np.isnan(args.acc_max_g) else args.acc_max_g,
+                                                t_min_ms  = None if np.isnan(args.t_min_ms) else args.t_min_ms,
+                                                t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms)
+        acc_time_series_plots.append(plot)
 
     # Generate power spectrum plots for each shock event
     power_spectrum_plots = []
@@ -485,13 +557,27 @@ def main():
                                                ps_max_g2 = None if np.isnan(args.ps_max_g2) else args.ps_max_g2)
         power_spectrum_plots.append(plot)
 
+    # Generate velocity time series plots for each shock event
+    vel_time_series_plots = []
+    for shock_event in shock_events:
+        print(f'Generating velocity time series plot of {shock_event.xlsx_filename} (Event ID: {shock_event.event_id})')
+        plot = shock_event.vel_time_series_plot(width  = args.plot_width,
+                                                height = args.plot_height,
+                                                vel_min_m_s = None if np.isnan(args.vel_min_m_s) else args.vel_min_m_s,
+                                                vel_max_m_s = None if np.isnan(args.vel_max_m_s) else args.vel_max_m_s,
+                                                t_min_ms  = None if np.isnan(args.t_min_ms) else args.t_min_ms,
+                                                t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms)
+        vel_time_series_plots.append(plot)
+        
     # Generate Bokeh JavaScript and "div" tags for plots.
-    plots = time_series_plots + power_spectrum_plots
+    plots = acc_time_series_plots + power_spectrum_plots + vel_time_series_plots
     print('Generating HTML components of the plots. This may take a while.')
     bokeh_script_html, plot_div_htmls = components(plots)
     plot_divs = [BeautifulSoup(html, 'html.parser') for html in plot_div_htmls]
-    time_series_plot_divs = plot_divs[:len(time_series_plots)]
-    power_spectrum_plot_divs = plot_divs[len(time_series_plots):]
+    n = len(acc_time_series_plots)
+    acc_time_series_plot_divs = plot_divs[:n]
+    power_spectrum_plot_divs  = plot_divs[n:2*n]
+    vel_time_series_plot_divs = plot_divs[2*n:]
         
     # Insert Bokeh JavaScript in the HTML tree.
     bokeh_cdn = html_tree.new_tag('script',
@@ -505,8 +591,9 @@ def main():
     plots_container = html_tree.select('#plot-msr175-plots')[0]
     for i in range(len(shock_events)):
         shock_event = shock_events[i]
-        time_series_plot_div = time_series_plot_divs[i]
-        power_spectrum_plot_div = power_spectrum_plot_divs[i]
+        acc_time_series_plot_div = acc_time_series_plot_divs[i]
+        power_spectrum_plot_div  = power_spectrum_plot_divs[i]
+        vel_time_series_plot_div = vel_time_series_plot_divs[i]
 
         # Add summary.
         summary_table = html_tree.select('table#plot-msr175-summary')[0]
@@ -555,8 +642,9 @@ def main():
 
         # Add plots
         horizontal_container = html_tree.new_tag('div')
-        horizontal_container.append(time_series_plot_div)
+        horizontal_container.append(acc_time_series_plot_div)
         horizontal_container.append(power_spectrum_plot_div)
+        horizontal_container.append(vel_time_series_plot_div)
         plots_container.append(horizontal_container)
 
     # Output the final HTML.
