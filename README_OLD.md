@@ -1,6 +1,6 @@
 # Script to plot acceleration data recorded by MSR175
 
-`plot-msr175.py` in this repository is a Python script to plot acceleration data recorded by [MSR175](https://www.msr.ch/en/product/transportation-shock-data-logger-msr175/).
+`plot-msr175-old.py` in this repository is a Python script to plot acceleration data recorded by [MSR175](https://www.msr.ch/en/product/transportation-shock-data-logger-msr175/).
 
 ## Prerequisite
 
@@ -22,17 +22,17 @@ Double-click the downloaded .m175 file on Windows File Explorer to launch MSR Re
 
 ### 3. Run the script
 
-Run `plot-msr175.py` with the CSV files as arguments:
+Run `plot-msr175-old.py` with the CSV files as arguments:
 
-    $ ./plot-msr175.py directory/to/ID-0.csv directory/to/ID-1.csv ...
+    $ ./plot-msr175-old.py directory/to/ID-0.csv directory/to/ID-1.csv ...
 
 Time series plots of the recorded acceleration will generated in the same directory as the CSV files. The file names will be ID-0.png, ID-1.png, etc.
 
 ### 4. Options
 
-Run `plot-msr175.py` with `--help` argument to see plot options:
+Run `plot-msr175-old.py` with `--help` argument to see plot options:
 
-    $ ./plot-msr175.py --help
+    $ ./plot-msr175-old.py --help
 
 For example, you can change the file format of the plots with `--plot-format` option.
 

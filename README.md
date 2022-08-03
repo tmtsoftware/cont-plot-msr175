@@ -22,7 +22,7 @@ If you already have a Python environment, you may install the Python packages ab
 
 You do not need a special installation procedure. Just download everything in this repository, for example,
 
-    $ git clone https://github.com/tnakamot/plot-msr175.git
+    $ git clone https://github.com/tmtsoftware/cont-plot-msr175.git
 
 ## Usage
 
