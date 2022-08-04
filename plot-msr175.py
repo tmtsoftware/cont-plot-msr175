@@ -9,6 +9,7 @@ import sys
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 import bokeh
+from bokeh.io import export_png
 from bokeh.models import HoverTool, DataRange1d
 from bokeh.plotting import figure
 from bokeh.embed import components
@@ -207,6 +208,10 @@ class MSR175ShockEvent:
         return self.xlsx_path.name
 
     @property
+    def xlsx_filename_stem(self):
+        return self.xlsx_path.stem
+
+    @property
     def html_id(self):
         # TODO: replace characters that are not allowed as a part of HTML id
         return f'{self.xlsx_filename}:{self.event_id}'
@@ -217,7 +222,8 @@ class MSR175ShockEvent:
                              acc_min_g = None,
                              acc_max_g = None,
                              t_min_ms  = None,
-                             t_max_ms  = None):
+                             t_max_ms  = None,
+                             hide_toolbar = False):
         
         plot = figure(plot_width  = width,
                       plot_height = height,
@@ -226,7 +232,7 @@ class MSR175ShockEvent:
                       x_axis_label = 'Time [ms]',
                       y_range = DataRange1d(start = acc_min_g, end = acc_max_g),
                       y_axis_label = 'Acceleration [g]',
-                      toolbar_location = 'above')
+                      toolbar_location = None if hide_toolbar else 'above')
 
         data = {
             't_ms'   : self.t_ms,
@@ -244,7 +250,7 @@ class MSR175ShockEvent:
             plot.circle(source = data, size = 10, x = 't_ms', y = y, color = color,
                         alpha = 0.0, hover_color = color, hover_alpha = 1.0)
 
-        plot.legend.location = 'bottom_right'
+        plot.legend.location = 'top_right'
         tooltips = [('t', '@t_ms{0.00000} ms'),
                     ('x', '@x_g g'),
                     ('y', '@y_g g'),
@@ -260,8 +266,9 @@ class MSR175ShockEvent:
                              vel_min_m_s = None,
                              vel_max_m_s = None,
                              t_min_ms    = None,
-                             t_max_ms    = None):
-        
+                             t_max_ms    = None,
+                             hide_toolbar = False):
+                             
         plot = figure(plot_width  = width,
                       plot_height = height,
                       x_range = (0 if t_min_ms is None else t_min_ms,
@@ -269,7 +276,7 @@ class MSR175ShockEvent:
                       x_axis_label = 'Time [ms]',
                       y_range = DataRange1d(start = vel_min_m_s, end = vel_max_m_s),
                       y_axis_label = 'Velocity [m/s] (assumes 0 m/s at t = 0)',
-                      toolbar_location = 'above')
+                      toolbar_location = None if hide_toolbar else 'above')
 
         data = {
             't_ms_' : self.t_ms,
@@ -285,7 +292,7 @@ class MSR175ShockEvent:
             plot.circle(source = data, size = 10, x = 't_ms_', y = y, color = color,
                         alpha = 0.0, hover_color = color, hover_alpha = 1.0)
 
-        plot.legend.location = 'bottom_right'
+        plot.legend.location = 'top_right'
         tooltips = [('t', '@t_ms_{0.00000} ms'),
                     ('x', '@x_m_s m/s'),
                     ('y', '@y_m_s m/s'),
@@ -298,8 +305,9 @@ class MSR175ShockEvent:
                             width     = 700,
                             height    = 350,
                             ps_min_g2 = None,
-                            ps_max_g2 = None):
-
+                            ps_max_g2 = None,
+                            hide_toolbar = False):
+                             
         plot = figure(plot_width   = width,
                       plot_height  = height,
                       x_range      = (0, self.sampling_frequency_Hz / 2),
@@ -307,7 +315,7 @@ class MSR175ShockEvent:
                       y_range = DataRange1d(start = ps_min_g2, end = ps_max_g2),
                       y_axis_label = 'Power Spectrum [g²]',
                       y_axis_type  = 'log',
-                      toolbar_location = 'above')
+                      toolbar_location = None if hide_toolbar else 'above')
 
         data = {
             'freq_Hz': self.power_spectrum_freq_Hz,
@@ -443,6 +451,11 @@ def parse_arguments():
                         metavar = 'OUTPUT',
                         default = 'output.html',
                         help    = 'Output HTML file path.')
+    parser.add_argument('--png-output-dir',
+                        dest    = 'png_output_dir',
+                        metavar = 'DIR',
+                        default = '',
+                        help    = 'Generate PNG file for each plot in the specified directory.')
     parser.add_argument('--template',
                         dest    = 'template',
                         metavar = 'TEMPLATE',
@@ -464,6 +477,10 @@ def parse_arguments():
                         default = 350,
                         type    = int,
                         help    = 'Height of each plot in pixels.')
+    parser.add_argument('--hide-toolbar',
+                        dest    = 'hide_toolbar',
+                        action  = 'store_true',
+                        help    = 'Hide toolbar on the top of each plot.')
     parser.add_argument('--min-acc',
                         dest    = 'acc_min_g',
                         metavar = 'MIN_G',
@@ -515,6 +532,10 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
+    png_output_dir = Path(args.png_output_dir) if args.png_output_dir else None
+    if png_output_dir:
+        png_output_dir.mkdir(parents = True, exist_ok = True)
+
     # Read HTML template
     with open(args.template) as template_html_file:
         html_tree = BeautifulSoup(template_html_file, 'html.parser')
@@ -544,8 +565,14 @@ def main():
                                                 acc_min_g = None if np.isnan(args.acc_min_g) else args.acc_min_g,
                                                 acc_max_g = None if np.isnan(args.acc_max_g) else args.acc_max_g,
                                                 t_min_ms  = None if np.isnan(args.t_min_ms) else args.t_min_ms,
-                                                t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms)
+                                                t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms,
+                                                hide_toolbar = args.hide_toolbar)
         acc_time_series_plots.append(plot)
+        
+        if png_output_dir:
+            png_file_path = png_output_dir.joinpath(f'{shock_event.xlsx_filename_stem}_{shock_event.event_id}_acceleration.png')
+            export_png(plot, filename = png_file_path)
+            print(f'Exporting the plot to {png_file_path}')
 
     # Generate power spectrum plots for each shock event
     power_spectrum_plots = []
@@ -554,8 +581,14 @@ def main():
         plot = shock_event.power_spectrum_plot(width  = args.plot_width,
                                                height = args.plot_height,
                                                ps_min_g2 = None if np.isnan(args.ps_min_g2) else args.ps_min_g2,
-                                               ps_max_g2 = None if np.isnan(args.ps_max_g2) else args.ps_max_g2)
+                                               ps_max_g2 = None if np.isnan(args.ps_max_g2) else args.ps_max_g2,
+                                               hide_toolbar = args.hide_toolbar)
         power_spectrum_plots.append(plot)
+        
+        if png_output_dir:
+            png_file_path = png_output_dir.joinpath(f'{shock_event.xlsx_filename_stem}_{shock_event.event_id}_power_spectrum.png')
+            export_png(plot, filename = png_file_path)
+            print(f'Exporting the plot to {png_file_path}')
 
     # Generate velocity time series plots for each shock event
     vel_time_series_plots = []
@@ -566,8 +599,14 @@ def main():
                                                 vel_min_m_s = None if np.isnan(args.vel_min_m_s) else args.vel_min_m_s,
                                                 vel_max_m_s = None if np.isnan(args.vel_max_m_s) else args.vel_max_m_s,
                                                 t_min_ms  = None if np.isnan(args.t_min_ms) else args.t_min_ms,
-                                                t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms)
+                                                t_max_ms  = None if np.isnan(args.t_max_ms) else args.t_max_ms,
+                                                hide_toolbar = args.hide_toolbar)
         vel_time_series_plots.append(plot)
+        
+        if png_output_dir:
+            png_file_path = png_output_dir.joinpath(f'{shock_event.xlsx_filename_stem}_{shock_event.event_id}_velocity.png')
+            export_png(plot, filename = png_file_path)
+            print(f'Exporting the plot to {png_file_path}')
         
     # Generate Bokeh JavaScript and "div" tags for plots.
     plots = acc_time_series_plots + power_spectrum_plots + vel_time_series_plots
